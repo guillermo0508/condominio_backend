@@ -13,11 +13,7 @@ class DatabaseSeeder extends Seeder
     
     public function run(): void
     {
-        
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        // Registramos el seeder del administrador maestro
+        $this->call(InitialAdminSeeder::class);
     }
 }

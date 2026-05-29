@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'auth/*',
             'chat/*',
+            'admin/*',
+            'notifications/*',
         ]);
         
         $middleware->trustHosts(at: [
