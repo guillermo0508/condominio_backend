@@ -10,10 +10,10 @@ use Illuminate\Support\Str;
 
 class UserFactory extends Factory
 {
-    
+
     protected static ?string $password;
 
-    
+
     public function definition(): array
     {
         return [
@@ -25,7 +25,7 @@ class UserFactory extends Factory
         ];
     }
 
-    
+
     public function unverified(): static
     {
         return $this->state(fn (array $attributes) => [

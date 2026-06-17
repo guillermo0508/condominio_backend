@@ -37,33 +37,21 @@ class User extends Authenticatable
         ];
     }
 
-    /**
-     * Get the email verifications for the user
-     */
     public function emailVerifications(): HasMany
     {
         return $this->hasMany(EmailVerification::class);
     }
 
-    /**
-     * Check if user is admin
-     */
     public function isAdmin(): bool
     {
         return $this->is_admin === true;
     }
 
-    /**
-     * Check if user has role
-     */
     public function hasRole(string $role): bool
     {
         return $this->role === $role;
     }
 
-    /**
-     * Check if email is verified
-     */
     public function isEmailVerified(): bool
     {
         return $this->email_verified_at !== null && $this->status === 'active';

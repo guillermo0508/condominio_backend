@@ -23,25 +23,16 @@ class EmailVerification extends Model
         ];
     }
 
-    /**
-     * Get the user that owns the email verification
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Check if code is valid and not expired
-     */
     public function isValid(): bool
     {
         return !$this->verified && now()->isBefore($this->expires_at);
     }
 
-    /**
-     * Mark as verified
-     */
     public function markAsVerified(): void
     {
         $this->update(['verified' => true]);

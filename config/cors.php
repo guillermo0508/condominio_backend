@@ -2,7 +2,7 @@
 
 return [
 
-    
+
 
     'paths' => ['api/*', 'sanctum/csrf-cookie', 'auth/*', 'chat/*', 'admin/*', 'notifications/*', 'broadcasting/*'],
 

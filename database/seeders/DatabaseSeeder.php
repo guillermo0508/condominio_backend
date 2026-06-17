@@ -10,10 +10,9 @@ class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    
+
     public function run(): void
     {
-        // Registramos el seeder del administrador maestro
         $this->call(InitialAdminSeeder::class);
     }
 }

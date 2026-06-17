@@ -1,21 +1,18 @@
 #!/bin/bash
 
-# Colors para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 echo -e "${BLUE}🚀 SETUP CONDOMINIO - Sistema de Gestión${NC}\n"
 
-# Check if in correct directory
 if [ ! -f "composer.json" ]; then
     echo -e "${RED}❌ Error: Este script debe ejecutarse en el directorio condominiobackend${NC}"
     exit 1
 fi
 
-# 1. Generate APP_KEY if not exists
 echo -e "${YELLOW}1️⃣  Configurando APP_KEY...${NC}"
 if grep -q "APP_KEY=$" .env; then
     php artisan key:generate
@@ -24,7 +21,6 @@ else
     echo -e "${GREEN}✅ APP_KEY ya existe${NC}\n"
 fi
 
-# 2. Run migrations
 echo -e "${YELLOW}2️⃣  Ejecutando migraciones...${NC}"
 php artisan migrate --force
 if [ $? -eq 0 ]; then
@@ -34,14 +30,12 @@ else
     exit 1
 fi
 
-# 3. Clear cache
 echo -e "${YELLOW}3️⃣  Limpiando caché...${NC}"
 php artisan cache:clear
 php artisan config:clear
 php artisan route:clear
 echo -e "${GREEN}✅ Caché limpiada${NC}\n"
 
-# 4. Create admin user
 echo -e "${YELLOW}4️⃣  Creando usuario administrador...${NC}"
 php artisan tinker <<'EOF'
 use App\Models\User;
@@ -68,7 +62,6 @@ EOF
 
 echo -e "${GREEN}✅ Administrador configurado${NC}\n"
 
-# Final instructions
 echo -e "${BLUE}════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✅ SETUP COMPLETADO CON ÉXITO!${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════${NC}\n"

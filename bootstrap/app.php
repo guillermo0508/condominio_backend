@@ -20,7 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'notifications/*',
             'api/*',
         ]);
-        
+
         $middleware->trustHosts(at: [
             '127.0.0.1:8000',
             'localhost:8000',
@@ -33,5 +33,5 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        
+
     })->create();

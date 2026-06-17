@@ -18,6 +18,13 @@ function auth_user_payload(User $user): array
     ];
 }
 
+function device_token_name(): string
+{
+    $deviceId = request()->header('X-Device-Id') ?: request()->header('User-Agent', 'default_device');
+
+    return 'device:' . hash('sha256', $deviceId);
+}
+
 Route::get('/', function () {
     return view('welcome');
 });
@@ -39,7 +46,7 @@ Route::post('/auth/register', function () {
         'email' => 'required|email|unique:users',
         'password' => 'required|string|min:6',
     ]);
-    
+
     $user = User::create([
         'name' => $data['name'],
         'email' => $data['email'],
@@ -47,7 +54,7 @@ Route::post('/auth/register', function () {
         'role' => 'resident',
         'is_admin' => false,
     ]);
-    
+
     return ['id' => $user->id, 'name' => $user->name, 'email' => $user->email];
 });
 
@@ -56,18 +63,20 @@ Route::post('/auth/login', function () {
         'email' => 'required|email',
         'password' => 'required|string',
     ]);
-    
+
     $user = User::where('email', $data['email'])->first();
 
     if (!$user || !Hash::check($data['password'], $user->password)) {
         return response()->json(['error' => 'Invalid credentials'], 401);
     }
-    
-    $token = $user->createToken('auth')->plainTextToken;
+
+    $deviceName = device_token_name();
+    $user->tokens()->where('name', $deviceName)->delete();
+
+    $token = $user->createToken($deviceName)->plainTextToken;
     return ['token' => $token, 'user' => auth_user_payload($user)];
 });
 
-// Nuevo login dedicado exclusivamente para el Administrador Maestro inicial
 Route::post('/auth/admin-master-login', function () {
     $data = request()->validate([
         'username' => 'required|string',
@@ -88,7 +97,10 @@ Route::post('/auth/admin-master-login', function () {
         ]
     );
 
-    $token = $user->createToken('auth')->plainTextToken;
+    $deviceName = device_token_name();
+    $user->tokens()->where('name', $deviceName)->delete();
+
+    $token = $user->createToken($deviceName)->plainTextToken;
     return ['token' => $token, 'user' => auth_user_payload($user)];
 });
 
@@ -99,9 +111,9 @@ Route::middleware('auth:sanctum')->post('/auth/logout', function () {
 
 Route::middleware('auth:sanctum')->post('/chat/send', function () {
     $data = request()->validate(['message' => 'required|string']);
-    
+
     $user = request()->user();
-    
+
     $chatMessage = ChatMessage::create([
         'user_id' => $user->id,
         'message' => $data['message'],
@@ -118,16 +130,14 @@ Route::middleware('auth:sanctum')->post('/chat/send', function () {
             'error' => $e->getMessage(),
         ]);
     }
-    
-    // Crear una notificación para la campana
+
     $notification = new \App\Notifications\CondominioNotification(
         'mensaje',
         'Nuevo mensaje de ' . $user->name,
         $data['message'],
         []
     );
-    
-    // Notificar a todos los usuarios EXCEPTO al que envió el mensaje
+
     $otherUsers = User::where('id', '!=', $user->id)->get();
     try {
         Notification::send($otherUsers, $notification);
@@ -137,7 +147,7 @@ Route::middleware('auth:sanctum')->post('/chat/send', function () {
         ]);
         Notification::sendNow($otherUsers, $notification, ['database']);
     }
-    
+
     return ['ok' => true, 'message' => $chatMessage];
 });
 
@@ -148,7 +158,7 @@ Route::middleware('auth:sanctum')->get('/chat/messages', function () {
         ->get()
         ->reverse()
         ->values();
-        
+
     $formattedMessages = $messages->map(function ($msg) {
         return [
             'user_id' => $msg->user_id,
@@ -181,14 +191,14 @@ Route::middleware('auth:sanctum')->post('/notifications/{id}/mark-as-read', func
 Route::middleware('auth:sanctum')->post('/notifications/test', function () {
     $types = ['mensaje', 'multas', 'asambleas', 'pagos_atrasados'];
     $type = $types[array_rand($types)];
-    
+
     $titles = [
         'mensaje' => 'Nuevo Mensaje de Administración',
         'multas' => 'Multa por ruido excesivo',
         'asambleas' => 'Asamblea Ordinaria Programada',
         'pagos_atrasados' => 'Recordatorio de Pago Atrasado'
     ];
-    
+
     $messages = [
         'mensaje' => 'Por favor revisar el nuevo reglamento de la piscina.',
         'multas' => 'Se le ha asignado una multa por ruidos molestos el fin de semana pasado.',
@@ -200,9 +210,9 @@ Route::middleware('auth:sanctum')->post('/notifications/test', function () {
         $type,
         $titles[$type],
         $messages[$type],
-        ['amount' => 5000, 'date' => now()->toDateTimeString()] // Sample details
+                ['amount' => 5000, 'date' => now()->toDateTimeString()]
     );
-    
+
     try {
         request()->user()->notify($notification);
     } catch (\Throwable $e) {
@@ -211,15 +221,14 @@ Route::middleware('auth:sanctum')->post('/notifications/test', function () {
         ]);
         request()->user()->notifyNow($notification, ['database']);
     }
-    
+
     return ['ok' => true, 'notified' => $type];
 });
 
-// Grupo de rutas protegidas para administradores
 Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureUserIsAdmin::class])
     ->prefix('admin')
     ->group(function () {
-        
+
         Route::get('/users', function () {
             return User::where('email', '!=', 'admin@condominio.com')
                 ->orderBy('name')
@@ -233,7 +242,6 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureUserIsAdmin::class
 
             $user = User::findOrFail($id);
 
-            // Evitar que el administrador se quite sus propios permisos
             if ($user->id === request()->user()->id && $data['role'] !== 'admin') {
                 return response()->json(['error' => 'No puedes quitarte el rol de administrador a ti mismo.'], 403);
             }
@@ -268,20 +276,20 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureUserIsAdmin::class
 
         Route::post('/notify', function () {
             $data = request()->validate([
-                'user_id' => 'required', // 'all' or integer
+                'user_id' => 'required',
                 'type' => 'required|string',
                 'title' => 'required|string',
                 'message' => 'required|string',
                 'details' => 'nullable|array'
             ]);
-            
+
             $notification = new \App\Notifications\CondominioNotification(
                 $data['type'],
                 $data['title'],
                 $data['message'],
                 $data['details'] ?? []
             );
-            
+
             $targetUsers = ($data['user_id'] === 'all')
                 ? User::where('email', '!=', 'admin@condominio.com')->get()
                 : User::where('email', '!=', 'admin@condominio.com')
@@ -291,7 +299,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureUserIsAdmin::class
             if ($targetUsers->isEmpty()) {
                 return response()->json(['error' => 'No se encontraron residentes para notificar.'], 422);
             }
-            
+
             try {
                 Notification::send($targetUsers, $notification);
             } catch (\Throwable $e) {
@@ -335,7 +343,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureUserIsAdmin::class
                     ]
                 ), ['database']);
             }
-            
+
             return ['ok' => true, 'recipients' => $targetUsers->count()];
         });
     });

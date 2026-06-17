@@ -11,9 +11,6 @@ use Illuminate\Validation\Rules\Password;
 
 class UserController extends Controller
 {
-    /**
-     * Get all users (Admin only)
-     */
     public function index(Request $request)
     {
         if (!$request->user()->is_admin && $request->user()->role !== 'admin') {
@@ -35,9 +32,6 @@ class UserController extends Controller
         ], 200);
     }
 
-    /**
-     * Create a new user (Admin only)
-     */
     public function store(Request $request)
     {
         if (!$request->user()->is_admin && $request->user()->role !== 'admin') {
@@ -58,7 +52,6 @@ class UserController extends Controller
             ], 422);
         }
 
-        // Create user with a temporary random password — user will set their own after verification
         $user = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
@@ -68,7 +61,6 @@ class UserController extends Controller
             'status'   => 'pending',
         ]);
 
-        // Generate verification code
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
         $verification = \App\Models\EmailVerification::create([
@@ -78,7 +70,6 @@ class UserController extends Controller
             'expires_at' => now()->addHours(24),
         ]);
 
-        // Send verification email
         \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\VerificationCodeMail($verification, $user->name));
 
         return response()->json([
@@ -93,9 +84,6 @@ class UserController extends Controller
         ], 201);
     }
 
-    /**
-     * Get a specific user
-     */
     public function show(Request $request, User $user)
     {
         if (!$request->user()->is_admin && $request->user()->role !== 'admin' && $request->user()->id !== $user->id) {
@@ -117,9 +105,6 @@ class UserController extends Controller
         ], 200);
     }
 
-    /**
-     * Update a user
-     */
     public function update(Request $request, User $user)
     {
         if (!$request->user()->is_admin && $request->user()->role !== 'admin' && $request->user()->id !== $user->id) {
@@ -159,6 +144,8 @@ class UserController extends Controller
 
         if ($request->has('password')) {
             $user->password = Hash::make($request->password);
+
+            $user->tokens()->delete();
         }
 
         if ($request->user()->is_admin || $request->user()->role === 'admin') {
@@ -188,9 +175,6 @@ class UserController extends Controller
         ], 200);
     }
 
-    /**
-     * Delete a user
-     */
     public function destroy(Request $request, User $user)
     {
         if (!$request->user()->is_admin && $request->user()->role !== 'admin') {

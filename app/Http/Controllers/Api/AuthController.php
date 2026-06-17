@@ -14,9 +14,13 @@ use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
-    /**
-     * Register a new user
-     */
+    private function deviceTokenName(Request $request): string
+    {
+        $deviceId = $request->header('X-Device-Id') ?: $request->header('User-Agent', 'default_device');
+
+        return 'device:' . hash('sha256', $deviceId);
+    }
+
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -41,9 +45,8 @@ class AuthController extends Controller
             'status' => 'pending',
         ]);
 
-        // Generate verification code
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        
+
         $verification = EmailVerification::create([
             'user_id' => $user->id,
             'email' => $user->email,
@@ -51,7 +54,6 @@ class AuthController extends Controller
             'expires_at' => now()->addHours(24),
         ]);
 
-        // Send verification email
         Mail::to($user->email)->send(new VerificationCodeMail($verification, $user->name));
 
         return response()->json([
@@ -64,9 +66,6 @@ class AuthController extends Controller
         ], 201);
     }
 
-    /**
-     * Verify email with code
-     */
     public function verifyEmail(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -99,11 +98,8 @@ class AuthController extends Controller
 
         $user = $verification->user;
 
-        // Check if this user was created by admin (no real password set yet)
-        // We use a special flag: if user has never logged in and status is pending
         $needsPassword = $user->status === 'pending' && !$user->email_verified_at;
 
-        // Mark email as verified and activate account
         $user->update([
             'email_verified_at' => now(),
             'status'            => 'active',
@@ -111,7 +107,6 @@ class AuthController extends Controller
 
         $verification->markAsVerified();
 
-        // If user needs to set password, return a short-lived token for that step
         if ($needsPassword) {
             $setupToken = $user->createToken('password_setup', ['password-setup'], now()->addMinutes(30))->plainTextToken;
             return response()->json([
@@ -137,9 +132,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    /**
-     * Set password after email verification (for admin-invited users)
-     */
     public function setPassword(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -157,9 +149,10 @@ class AuthController extends Controller
         $user = $request->user();
         $user->update(['password' => Hash::make($request->password)]);
 
-        // Revoke setup token and issue a real auth token
-        $request->user()->currentAccessToken()->delete();
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $user->tokens()->delete();
+
+        $deviceName = $this->deviceTokenName($request);
+        $token = $user->createToken($deviceName)->plainTextToken;
 
         return response()->json([
             'message'      => '¡Contraseña establecida! Ya puedes usar la aplicación.',
@@ -176,9 +169,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    /**
-     * Login user
-     */
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -207,7 +197,11 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $deviceName = $this->deviceTokenName($request);
+
+        $user->tokens()->where('name', $deviceName)->delete();
+
+        $token = $user->createToken($deviceName)->plainTextToken;
 
         return response()->json([
             'message' => 'Login successful',
@@ -224,9 +218,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    /**
-     * Get current user
-     */
     public function me(Request $request)
     {
         return response()->json([
@@ -241,9 +232,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    /**
-     * Logout user
-     */
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
@@ -253,9 +241,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    /**
-     * Resend verification code
-     */
     public function resendVerificationCode(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -283,9 +268,8 @@ class AuthController extends Controller
             ], 400);
         }
 
-        // Generate new verification code
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        
+
         $verification = EmailVerification::create([
             'user_id' => $user->id,
             'email' => $user->email,
@@ -293,7 +277,6 @@ class AuthController extends Controller
             'expires_at' => now()->addHours(24),
         ]);
 
-        // Send verification email
         Mail::to($user->email)->send(new VerificationCodeMail($verification, $user->name));
 
         return response()->json([

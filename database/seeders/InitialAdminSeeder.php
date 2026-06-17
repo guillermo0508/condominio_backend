@@ -10,9 +10,8 @@ class InitialAdminSeeder extends Seeder
 {
     public function run(): void
     {
-        // Creamos el administrador inicial solicitado
         User::updateOrCreate(
-            ['email' => 'admin@condominio.com'], // Email por defecto interno
+            ['email' => 'admin@condominio.com'],
             [
                 'name' => 'admin',
                 'password' => Hash::make('admin123'),

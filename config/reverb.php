@@ -2,11 +2,11 @@
 
 return [
 
-    
+
 
     'default' => env('REVERB_SERVER', 'reverb'),
 
-    
+
 
     'servers' => [
 
@@ -38,7 +38,7 @@ return [
 
     ],
 
-    
+
 
     'apps' => [
 

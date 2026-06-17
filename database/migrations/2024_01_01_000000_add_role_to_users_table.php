@@ -9,7 +9,6 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            // Agregamos el campo role después de la contraseña
             $table->string('role')->default('resident')->after('password');
         });
     }

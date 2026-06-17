@@ -2,11 +2,11 @@
 
 return [
 
-    
+
 
     'default' => env('BROADCAST_CONNECTION', 'reverb'),
 
-    
+
 
     'connections' => [
 
@@ -22,7 +22,7 @@ return [
                 'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
             ],
             'client_options' => [
-                
+
             ],
         ],
 
@@ -40,7 +40,7 @@ return [
                 'useTLS' => env('PUSHER_SCHEME', 'https') === 'https',
             ],
             'client_options' => [
-                
+
             ],
         ],
 
