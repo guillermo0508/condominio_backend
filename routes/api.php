@@ -10,6 +10,9 @@ Route::post('/auth/verify-email', [AuthController::class, 'verifyEmail']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/resend-verification', [AuthController::class, 'resendVerificationCode']);
 
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+
 Route::middleware('auth:sanctum')->post('/auth/set-password', [AuthController::class, 'setPassword']);
 
 Route::middleware('auth:sanctum')->group(function () {

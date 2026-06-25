@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\PasswordRecoveryMail;
 use App\Mail\VerificationCodeMail;
 use App\Models\EmailVerification;
+use App\Models\PasswordResetCode;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -281,6 +283,99 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Verification code sent to your email',
+        ], 200);
+    }
+    public function forgotPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            // Return success even if user not found to prevent email enumeration
+            return response()->json([
+                'message' => 'Si el correo electrónico existe, se ha enviado un código de recuperación.',
+            ], 200);
+        }
+
+        $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        // Delete old codes for this email
+        PasswordResetCode::where('email', $user->email)->delete();
+
+        $resetCode = PasswordResetCode::create([
+            'email' => $user->email,
+            'code' => $code,
+            'expires_at' => now()->addMinutes(30),
+        ]);
+
+        Mail::to($user->email)->send(new PasswordRecoveryMail($resetCode, $user->name));
+
+        return response()->json([
+            'message' => 'Si el correo electrónico existe, se ha enviado un código de recuperación.',
+        ], 200);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'code' => 'required|string|size:6',
+            'password' => ['required', 'confirmed', Password::min(8)],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $resetCode = PasswordResetCode::where('email', $request->email)
+            ->where('code', $request->code)
+            ->first();
+
+        if (!$resetCode) {
+            return response()->json([
+                'message' => 'Código de recuperación inválido',
+            ], 400);
+        }
+
+        if (!$resetCode->isValid()) {
+            return response()->json([
+                'message' => 'El código de recuperación ha expirado',
+            ], 400);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Usuario no encontrado',
+            ], 404);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password)
+        ]);
+
+        // Revoke all tokens so they have to log in again
+        $user->tokens()->delete();
+
+        // Delete the used reset code
+        $resetCode->delete();
+
+        return response()->json([
+            'message' => 'Tu contraseña ha sido restablecida exitosamente.',
         ], 200);
     }
 }
