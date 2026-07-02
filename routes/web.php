@@ -15,6 +15,7 @@ function auth_user_payload(User $user): array
         'email' => $user->email,
         'role' => $user->role,
         'is_admin' => $user->role === 'admin',
+        'profile_picture_url' => $user->profile_picture_url,
     ];
 }
 
@@ -104,12 +105,12 @@ Route::post('/auth/admin-master-login', function () {
     return ['token' => $token, 'user' => auth_user_payload($user)];
 });
 
-Route::middleware('auth:sanctum')->post('/auth/logout', function () {
+Route::middleware(['auth:sanctum', 'update_last_seen'])->post('/auth/logout', function () {
     request()->user()->currentAccessToken()->delete();
     return ['message' => 'Logged out'];
 });
 
-Route::middleware('auth:sanctum')->post('/chat/send', function () {
+Route::middleware(['auth:sanctum', 'update_last_seen'])->post('/chat/send', function () {
     $data = request()->validate(['message' => 'required|string']);
 
     $user = request()->user();
@@ -123,7 +124,8 @@ Route::middleware('auth:sanctum')->post('/chat/send', function () {
         event(new \App\Events\DepartmentChatMessage(
             $data['message'],
             $user->id,
-            $user->name
+            $user->name,
+            $user->profile_picture_url
         ));
     } catch (\Throwable $e) {
         Log::warning('No se pudo transmitir el mensaje por websocket.', [
@@ -151,8 +153,8 @@ Route::middleware('auth:sanctum')->post('/chat/send', function () {
     return ['ok' => true, 'message' => $chatMessage];
 });
 
-Route::middleware('auth:sanctum')->get('/chat/messages', function () {
-    $messages = ChatMessage::with('user:id,name')
+Route::middleware(['auth:sanctum', 'update_last_seen'])->get('/chat/messages', function () {
+    $messages = ChatMessage::with('user:id,name,last_seen_at')
         ->orderBy('created_at', 'desc')
         ->take(50)
         ->get()
@@ -163,6 +165,8 @@ Route::middleware('auth:sanctum')->get('/chat/messages', function () {
         return [
             'user_id' => $msg->user_id,
             'user_name' => $msg->user ? $msg->user->name : 'Unknown User',
+            'last_seen_at' => $msg->user ? $msg->user->last_seen_at : null,
+            'profile_picture_url' => $msg->user ? $msg->user->profile_picture_url : null,
             'text' => $msg->message,
             'id' => $msg->id,
             'created_at' => $msg->created_at
@@ -172,7 +176,39 @@ Route::middleware('auth:sanctum')->get('/chat/messages', function () {
     return $formattedMessages;
 });
 
-Route::middleware('auth:sanctum')->get('/notifications', function () {
+Route::middleware(['auth:sanctum', 'update_last_seen'])->get('/chat/users', function () {
+    return User::where('email', '!=', 'admin@condominio.com')
+        ->orderBy('name')
+        ->get(['id', 'name', 'last_seen_at', 'profile_picture'])
+        ->map(function ($user) {
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'last_seen_at' => $user->last_seen_at,
+                'profile_picture_url' => $user->profile_picture_url
+            ];
+        });
+});
+
+Route::middleware(['auth:sanctum', 'update_last_seen'])->post('/profile/picture', function (Illuminate\Http\Request $request) {
+    $request->validate([
+        'picture' => 'required|image|max:5120', // Max 5MB
+    ]);
+
+    $user = $request->user();
+    
+    if ($user->profile_picture) {
+        Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_picture);
+    }
+
+    $path = $request->file('picture')->store('profile_pictures', 'public');
+    $user->profile_picture = $path;
+    $user->save();
+
+    return ['ok' => true, 'profile_picture_url' => $user->profile_picture_url];
+});
+
+Route::middleware(['auth:sanctum', 'update_last_seen'])->get('/notifications', function () {
     return request()->user()
         ->notifications()
         ->latest()
@@ -180,7 +216,7 @@ Route::middleware('auth:sanctum')->get('/notifications', function () {
         ->get();
 });
 
-Route::middleware('auth:sanctum')->post('/notifications/{id}/mark-as-read', function ($id) {
+Route::middleware(['auth:sanctum', 'update_last_seen'])->post('/notifications/{id}/mark-as-read', function ($id) {
     $notification = request()->user()->notifications()->where('id', $id)->first();
     if ($notification) {
         $notification->markAsRead();
@@ -188,7 +224,7 @@ Route::middleware('auth:sanctum')->post('/notifications/{id}/mark-as-read', func
     return ['ok' => true];
 });
 
-Route::middleware('auth:sanctum')->post('/notifications/test', function () {
+Route::middleware(['auth:sanctum', 'update_last_seen'])->post('/notifications/test', function () {
     $types = ['mensaje', 'multas', 'asambleas', 'pagos_atrasados'];
     $type = $types[array_rand($types)];
 
@@ -225,7 +261,7 @@ Route::middleware('auth:sanctum')->post('/notifications/test', function () {
     return ['ok' => true, 'notified' => $type];
 });
 
-Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureUserIsAdmin::class])
+Route::middleware(['auth:sanctum', 'update_last_seen', \App\Http\Middleware\EnsureUserIsAdmin::class])
     ->prefix('admin')
     ->group(function () {
 

@@ -15,12 +15,14 @@ class DepartmentChatMessage implements ShouldBroadcastNow
     public string $message;
     public int $userId;
     public string $userName;
+    public ?string $profilePictureUrl;
 
-    public function __construct(string $message, int $userId, string $userName)
+    public function __construct(string $message, int $userId, string $userName, ?string $profilePictureUrl = null)
     {
         $this->message = $message;
         $this->userId = $userId;
         $this->userName = $userName;
+        $this->profilePictureUrl = $profilePictureUrl;
     }
 
     public function broadcastOn(): array

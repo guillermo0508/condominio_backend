@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class User extends Authenticatable
 {
@@ -22,6 +23,12 @@ class User extends Authenticatable
         'role',
         'is_admin',
         'status',
+        'last_seen_at',
+        'profile_picture',
+    ];
+
+    protected $appends = [
+        'profile_picture_url',
     ];
 
     protected $hidden = [
@@ -34,6 +41,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'last_seen_at' => 'datetime',
         ];
     }
 
@@ -55,5 +63,12 @@ class User extends Authenticatable
     public function isEmailVerified(): bool
     {
         return $this->email_verified_at !== null && $this->status === 'active';
+    }
+
+    protected function profilePictureUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->profile_picture ? asset('storage/' . $this->profile_picture) : null,
+        );
     }
 }

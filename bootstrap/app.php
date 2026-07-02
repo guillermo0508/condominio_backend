@@ -30,6 +30,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'admin' => \App\Http\Middleware\CheckAdminRole::class,
+            'active' => \App\Http\Middleware\CheckActiveStatus::class,
+            'update_last_seen' => \App\Http\Middleware\UpdateLastSeen::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
